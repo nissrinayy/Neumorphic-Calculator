@@ -181,7 +181,7 @@ extension CalculatorExtension on String {
     }
   }
 
-  String get removeLastChar => input.substring(0, input.length - 1);
+  String get removeLastChar => input.isEmpty ? input : input.substring(0, input.length - 1);
 
   (String, int) removeCharAt(int offset) {
     try {

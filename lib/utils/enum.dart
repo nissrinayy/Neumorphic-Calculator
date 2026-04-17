@@ -68,7 +68,7 @@ enum Fonts {
       case Fonts.dancingScript:
         return GoogleFonts.dancingScriptTextTheme();
       case Fonts.kodeMono:
-        return GoogleFonts.kodeMonoTextTheme();
+        return GoogleFonts.robotoTextTheme();
       case Fonts.cabin:
         return GoogleFonts.cabinTextTheme();
       case Fonts.pacifico:
@@ -134,7 +134,7 @@ enum Fonts {
 
       case Fonts.kodeMono:
         return theme.copyWith(
-          textTheme: GoogleFonts.kodeMonoTextTheme(),
+          textTheme: GoogleFonts.robotoTextTheme(),
         );
 
       case Fonts.cabin:
