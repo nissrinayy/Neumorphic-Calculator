@@ -95,7 +95,9 @@ pipeline {
 
                     // VALIDASI APK PACKAGE NAME
                     echo "Checking APK package..."
-                    bat "aapt dump badging \"${apkPath}\" | findstr package"
+                    def AAPT = "C:\\Users\\Nisrina\\AppData\\Local\\Android\\Sdk\\build-tools\\36.0.0\\aapt.exe"
+
+                    bat "\"${AAPT}\" dump badging \"${apkPath}\" | findstr package"
 
                     def timestamp = new Date().format("yyyyMMdd_HHmmss")
                     def finalApk = "${env.WORKSPACE}\\apk-outputs\\calculator-${params.BUILD_TYPE}-${timestamp}.apk"
