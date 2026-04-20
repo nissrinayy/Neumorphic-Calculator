@@ -130,8 +130,10 @@ pipeline {
                 script {
                     echo "Cleaning old apps..."
 
-                    bat "adb uninstall com.ragheb.neumorphic_calculator || echo not found"
-                    bat "adb uninstall com.weather.app || echo not found"
+                    bat """
+                    adb uninstall com.ragheb.neumorphic_calculator
+                    exit /b 0
+                    """
 
                     echo "Installing APK..."
 
@@ -139,7 +141,6 @@ pipeline {
 
                     echo "Installed apps:"
                     bat "adb shell pm list packages | findstr ragheb"
-                    bat "adb shell pm list packages | findstr weather"
                 }
             }
         }
