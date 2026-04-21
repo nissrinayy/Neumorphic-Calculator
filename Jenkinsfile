@@ -93,7 +93,6 @@ pipeline {
                         error "APK tidak ditemukan!"
                     }
 
-                    // VALIDASI APK PACKAGE NAME
                     echo "Checking APK package..."
                     def AAPT = "C:\\Users\\Nisrina\\AppData\\Local\\Android\\Sdk\\build-tools\\36.0.0\\aapt.exe"
 
@@ -117,10 +116,12 @@ pipeline {
                 bat """
                 start /b "" "${env.ANDROID_HOME}\\emulator\\emulator.exe" ^
                 -avd "${env.AVD_NAME}" ^
-                -no-window -no-audio -gpu swiftshader_indirect -wipe-data
+                -no-window -no-audio ^
+                -gpu swiftshader_indirect -wipe-data
                 """
                 sleep 60
                 bat "adb wait-for-device"
+                bat "adb shell getprop sys.boot_completed"
             }
         }
 
@@ -130,13 +131,9 @@ pipeline {
                 script {
                     echo "Cleaning old apps..."
 
-                    bat """
-                    adb uninstall com.ragheb.neumorphic_calculator
-                    exit /b 0
-                    """
+                    bat(script: "adb uninstall ${env.APP_PACKAGE}", returnStatus: true)
 
                     echo "Installing APK..."
-
                     bat "adb install -r \"${env.FINAL_APK}\""
 
                     echo "Installed apps:"
@@ -170,36 +167,6 @@ pipeline {
                     --data "hash=${hash}" ^
                     ${env.MOBSF_URL}/api/v1/scan
                     """
-                }
-            }
-        }
-        // ================= EMULATOR =================
-        stage('Start Emulator') {
-            steps {
-                bat """
-                start /b "" "${env.ANDROID_HOME}\\emulator\\emulator.exe" ^
-                -avd "${env.AVD_NAME}" ^
-                -no-window -no-audio ^
-                -gpu swiftshader_indirect -wipe-data
-                """
-                sleep 60
-                bat "adb wait-for-device"
-                bat "adb shell getprop sys.boot_completed"
-            }
-        }
-
-        // ================= INSTALL APK =================
-        stage('Install APK') {
-            steps {
-                script {
-                    def timestamp  = new Date().format("dd-MM-yyyy_HH-mm-ss")
-                    def sourcePath = "${env.WORKSPACE}\\build\\app\\outputs\\flutter-apk\\app-${params.BUILD_TYPE}.apk"
-                    def destPath   = "${env.WORKSPACE}\\apk-outputs\\todo-${params.BUILD_TYPE}-${timestamp}.apk"
-
-                    bat "copy \"${sourcePath}\" \"${destPath}\""
-
-                    bat(script: "adb uninstall ${env.APP_PACKAGE}", returnStatus: true)
-                    bat "adb install -r \"${destPath}\""
                 }
             }
         }
@@ -285,8 +252,7 @@ pipeline {
                 bat 'taskkill /F /IM qemu-system-x86_64.exe /T || echo Emulator already stopped'
             }
         }
-
-        
+    }
 
     post {
         always {
@@ -294,4 +260,3 @@ pipeline {
         }
     }
 }
-
