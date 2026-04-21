@@ -173,14 +173,120 @@ pipeline {
                 }
             }
         }
+        // ================= EMULATOR =================
+        stage('Start Emulator') {
+            steps {
+                bat """
+                start /b "" "${env.ANDROID_HOME}\\emulator\\emulator.exe" ^
+                -avd "${env.AVD_NAME}" ^
+                -no-window -no-audio ^
+                -gpu swiftshader_indirect -wipe-data
+                """
+                sleep 60
+                bat "adb wait-for-device"
+                bat "adb shell getprop sys.boot_completed"
+            }
+        }
+
+        // ================= INSTALL APK =================
+        stage('Install APK') {
+            steps {
+                script {
+                    def timestamp  = new Date().format("dd-MM-yyyy_HH-mm-ss")
+                    def sourcePath = "${env.WORKSPACE}\\build\\app\\outputs\\flutter-apk\\app-${params.BUILD_TYPE}.apk"
+                    def destPath   = "${env.WORKSPACE}\\apk-outputs\\todo-${params.BUILD_TYPE}-${timestamp}.apk"
+
+                    bat "copy \"${sourcePath}\" \"${destPath}\""
+
+                    bat(script: "adb uninstall ${env.APP_PACKAGE}", returnStatus: true)
+                    bat "adb install -r \"${destPath}\""
+                }
+            }
+        }
+
+        // ================= DAST =================
+        stage('DAST - Dynamic Analysis (MobSF)') {
+            steps {
+                script {
+                    bat "adb shell input keyevent 82"
+                    sleep 2
+
+                    bat """
+                    @curl -s -X POST ^
+                    -H "Authorization: ${env.MOBSF_TOKEN}" ^
+                    --data "hash=${env.APK_HASH}" ^
+                    ${env.MOBSF_URL}/api/v1/dynamic/start_analysis
+                    """
+
+                    sleep 25
+
+                    bat """
+                    @curl -s -X POST ^
+                    -H "Authorization: ${env.MOBSF_TOKEN}" ^
+                    --data "hash=${env.APK_HASH}&default_hooks=api_monitor,ssl_pinning_bypass,root_bypass,debugger_check_bypass" ^
+                    ${env.MOBSF_URL}/api/v1/frida/instrument
+                    """
+
+                    try {
+                        bat "adb shell monkey -p ${env.APP_PACKAGE} --pct-syskeys 0 --throttle 1500 -v 200"
+                    } catch (Exception e) {
+                        echo "Monkey finished."
+                    }
+
+                    def tlsRaw = bat(
+                        script: """
+                        @curl -s -X POST ^
+                        -H "Authorization: ${env.MOBSF_TOKEN}" ^
+                        --data "hash=${env.APK_HASH}" ^
+                        ${env.MOBSF_URL}/api/v1/android/tls_tests
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    def tlsJson = cleanJsonString(tlsRaw)
+                    if (tlsJson) {
+                        writeFile file: 'tls_report.json', text: tlsJson
+                    } else {
+                        echo "⚠️ TLS JSON report could not be parsed."
+                    }
+
+                    bat """
+                    @curl -s -X POST ^
+                    -H "Authorization: ${env.MOBSF_TOKEN}" ^
+                    --data "hash=${env.APK_HASH}" ^
+                    ${env.MOBSF_URL}/api/v1/dynamic/stop_analysis
+                    """
+
+                    def raw = bat(
+                        script: """
+                        @curl -s -X POST ^
+                        -H "Authorization: ${env.MOBSF_TOKEN}" ^
+                        --data "hash=${env.APK_HASH}" ^
+                        ${env.MOBSF_URL}/api/v1/dynamic/report_json
+                        """,
+                        returnStdout: true
+                    ).trim()
+
+                    def json = cleanJsonString(raw)
+                    if (json) {
+                        writeFile file: 'dast_report.json', text: json
+                        archiveArtifacts artifacts: 'dast_report.json, tls_report.json', allowEmptyArchive: true
+                        echo "✅ DAST Report URL: ${env.MOBSF_URL}/dynamic_report/${env.APK_HASH}/"
+                    } else {
+                        echo "⚠️ DAST JSON report could not be parsed."
+                    }
+                }
+            }
+        }
 
         // ================= CLEANUP =================
         stage('Cleanup') {
             steps {
-                bat 'taskkill /F /IM qemu-system-x86_64.exe /T || echo Emulator stopped'
+                bat 'taskkill /F /IM qemu-system-x86_64.exe /T || echo Emulator already stopped'
             }
         }
-    }
+
+        
 
     post {
         always {
